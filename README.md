@@ -1,6 +1,8 @@
 ```dart
 
+
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -32,6 +34,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<UserModel> userList = [];
   bool isSearchMode = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,12 +43,13 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             onPressed: () async {
-              var user = await showDialog(
+              UserModel? user = await showDialog(
                 context: context,
                 builder: (context) => UserProfileDialog(),
               );
               setState(() {
                 if (user != null) {
+                  log(user.toString());
                   userList.add(user);
                 }
               });
@@ -79,15 +83,39 @@ class _HomePageState extends State<HomePage> {
                   title: Text(data.name),
                   subtitle: Text(data.email),
                   trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       InkWell(
-                        onTap: () {},
-                        child: Icon(Icons.delete),
+                        onTap: () {
+                          setState(() {
+                            userList.removeAt(index);
+                          });
+                        },
+                        child: Icon(
+                          Icons.delete,
+                          color: Colors.redAccent,
+                        ),
                       ),
                       SizedBox(width: 10),
                       InkWell(
-                        onTap: () {},
-                        child: Icon(Icons.edit),
+                        onTap: () async {
+                          UserModel? updatedUser = await showDialog(
+                            context: context,
+                            builder: (context) => UserProfileDialog(
+                              userToEdit: data,
+                              isEditMode: true,
+                            ),
+                          );
+                          if (updatedUser != null) {
+                            setState(() {
+                              userList[index] = updatedUser;
+                            });
+                          }
+                        },
+                        child: Icon(
+                          Icons.edit,
+                          color: Colors.blue,
+                        ),
                       )
                     ],
                   ),
@@ -99,7 +127,14 @@ class _HomePageState extends State<HomePage> {
 }
 
 class UserProfileDialog extends StatefulWidget {
-  const UserProfileDialog({super.key});
+  final UserModel? userToEdit;
+  final bool isEditMode;
+
+  const UserProfileDialog({
+    super.key,
+    this.userToEdit,
+    this.isEditMode = false,
+  });
 
   @override
   State<UserProfileDialog> createState() => _UserProfileDialogState();
@@ -112,6 +147,18 @@ class _UserProfileDialogState extends State<UserProfileDialog> {
 
   String? _profile;
 
+  @override
+  void initState() {
+    super.initState();
+    // If in edit mode, populate the fields with existing data
+    if (widget.isEditMode && widget.userToEdit != null) {
+      _nameController.text = widget.userToEdit!.name;
+      _emailController.text = widget.userToEdit!.email;
+      _descriptionController.text = widget.userToEdit!.description ?? '';
+      _profile = widget.userToEdit!.profile;
+    }
+  }
+
   pickImageFile() async {
     ImagePicker imagePicker = ImagePicker();
     final pickedFile = await imagePicker.pickImage(source: ImageSource.gallery);
@@ -123,10 +170,25 @@ class _UserProfileDialogState extends State<UserProfileDialog> {
   }
 
   onSave() {
+    // Validate required fields
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a name')),
+      );
+      return;
+    }
+
+    if (_emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter an email')),
+      );
+      return;
+    }
+
     UserModel user = UserModel(
-      name: _nameController.text,
-      email: _emailController.text,
-      description: _descriptionController.text,
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       profile: _profile,
     );
     Navigator.pop(context, user);
@@ -147,7 +209,7 @@ class _UserProfileDialogState extends State<UserProfileDialog> {
       child: AlertDialog(
         contentPadding: EdgeInsets.zero,
         titlePadding: EdgeInsets.all(15),
-        title: Center(child: Text('Add User Profile')),
+        title: Center(child: Text(widget.isEditMode ? 'Edit User Profile' : 'Add User Profile')),
         content: Container(
           decoration: BoxDecoration(border: Border(top: BorderSide())),
           width: MediaQuery.of(context).size.width,
@@ -192,6 +254,7 @@ class _UserProfileDialogState extends State<UserProfileDialog> {
                 padding: const EdgeInsets.all(8.0),
                 child: TextField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     filled: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -226,7 +289,7 @@ class _UserProfileDialogState extends State<UserProfileDialog> {
           ),
           ElevatedButton(
             onPressed: onSave,
-            child: Text('   Save   '),
+            child: Text(widget.isEditMode ? '   Update   ' : '   Save   '),
           )
         ],
       ),
@@ -239,6 +302,7 @@ class UserModel {
   final String email;
   final String? profile;
   final String? description;
+
   UserModel({
     required this.name,
     required this.email,
@@ -299,6 +363,7 @@ class UserModel {
     return name.hashCode ^ email.hashCode ^ profile.hashCode ^ description.hashCode;
   }
 }
+
 
 
 ```
